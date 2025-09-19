@@ -4,22 +4,14 @@ import {
   FaShoppingCart, 
   FaMoneyBillWave, 
   FaUsers,
-  FaTrendingUp,
-  FaTrendingDown,
+  FaArrowUp,
+  FaArrowDown,
   FaCalendarAlt,
   FaSearch,
-  FaRefresh,
-  FaDownload,
+  FaSync,
   FaEye,
-  FaClock,
-  FaThermometerHalf,
-  FaCloudSun,
-  FaWind,
-  FaTint,
   FaBell,
-  FaFire,
-  FaMoon,
-  FaSun
+  FaFire
 } from 'react-icons/fa';
 import API from "../../services/api";
 import styles from "./Dashboard.module.css";
@@ -64,58 +56,68 @@ function daysBetweenISO(startISO, endISO) {
 }
 
 export default function AdminDashboard() {
-  // Dark mode state
-  const [isDarkMode, setIsDarkMode] = React.useState(false);
-  
-  // Real-time clock state
-  const [currentTime, setCurrentTime] = React.useState(dayjs());
-  
-  // Weather state (mock data for demo)
-  const [weather, setWeather] = React.useState({
-    temp: 32,
-    condition: 'sunny',
-    humidity: 65,
-    windSpeed: 8,
-    location: 'กรุงเทพฯ'
-  });
-  
-  // Update time every second
-  React.useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(dayjs());
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
-
-  // Simulate weather updates every 30 seconds
-  React.useEffect(() => {
-    const timer = setInterval(() => {
-      setWeather(prev => ({
-        ...prev,
-        temp: Math.floor(Math.random() * 10) + 28, // 28-37°C
-        humidity: Math.floor(Math.random() * 30) + 50, // 50-80%
-        windSpeed: Math.floor(Math.random() * 15) + 5 // 5-20 km/h
-      }));
-    }, 30000);
-    return () => clearInterval(timer);
-  }, []);
-
-  // ดึง orders จาก API
+  // ดึงข้อมูลจาก API
   const [orders, setOrders] = React.useState([]);
+  const [products, setProducts] = React.useState([]);
+  const [users, setUsers] = React.useState([]);
+  const [payments, setPayments] = React.useState([]);
   const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState(null);
 
   const [startDate, setStartDate] = React.useState(
     dayjs().subtract(7, "day").format("YYYY-MM-DD")
   );
   const [endDate, setEndDate] = React.useState(dayjs().format("YYYY-MM-DD"));
 
-  // โหลด orders เมื่อช่วงวันที่เปลี่ยน
-  React.useEffect(() => {
-    setLoading(true);
-    API.orders.list({ startDate, endDate })
-      .then(setOrders)
-      .finally(() => setLoading(false));
+  // โหลดข้อมูลจาก API
+  const loadData = React.useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // ดึงข้อมูลแบบ parallel
+      const [ordersRes, productsRes, usersRes, paymentsRes] = await Promise.allSettled([
+        API.orders.list({ startDate, endDate }),
+        API.products.list(),
+        API.users.list(),
+        API.payments ? API.payments.list({ startDate, endDate }) : Promise.resolve([])
+      ]);
+
+      // Process results
+      if (ordersRes.status === 'fulfilled') {
+        setOrders(ordersRes.value || []);
+      } else {
+        console.warn('Failed to load orders:', ordersRes.reason);
+      }
+
+      if (productsRes.status === 'fulfilled') {
+        setProducts(productsRes.value || []);
+      } else {
+        console.warn('Failed to load products:', productsRes.reason);
+      }
+
+      if (usersRes.status === 'fulfilled') {
+        setUsers(usersRes.value || []);
+      } else {
+        console.warn('Failed to load users:', usersRes.reason);
+      }
+
+      if (paymentsRes.status === 'fulfilled') {
+        setPayments(paymentsRes.value || []);
+      }
+
+    } catch (err) {
+      console.error('Error loading dashboard data:', err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
   }, [startDate, endDate]);
+
+  // โหลดข้อมูลเมื่อ component mount และเมื่อช่วงวันที่เปลี่ยน
+  React.useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   // คัดกรองออเดอร์ตามช่วงวันที่ (ถ้า API ไม่รองรับ filter ให้ใช้ตรงนี้)
   const filteredOrders = React.useMemo(() => {
@@ -224,51 +226,98 @@ export default function AdminDashboard() {
   );
   const fmtTooltipLabel = (iso) => dayjs(iso).format("DD/MM/YYYY");
 
-  // Quick actions data
+  // Quick actions data with real stats
   const quickActions = [
     { 
       icon: FaUsers, 
       label: 'จัดการผู้ใช้', 
       path: '/admin/users',
-      color: '#3b82f6'
+      color: '#3b82f6',
+      count: users.length
     },
     { 
       icon: FaShoppingCart, 
       label: 'จัดการสินค้า', 
       path: '/admin/products',
-      color: '#10b981'
+      color: '#10b981',
+      count: products.length
     },
     { 
       icon: FaMoneyBillWave, 
       label: 'การชำระเงิน', 
       path: '/admin/payments',
-      color: '#f59e0b'
+      color: '#f59e0b',
+      count: payments.length
     },
     { 
       icon: FaEye, 
-      label: 'ดูคำสั่งซื้อ', 
-      path: '/staff/orders',
-      color: '#ef4444'
+      label: 'ออเดอร์ทั้งหมด', 
+      path: '/admin/orders',
+      color: '#ef4444',
+      count: totalOrders
     }
   ];
 
-  // Mock top products data
+  // คำนวณสินค้าขายดีจากข้อมูลจริง
   const topProducts = React.useMemo(() => {
-    const products = [
-      { name: 'หม่าล่าต้นตำรับ', sales: 145, revenue: 72500, color: '#ef4444' },
-      { name: 'หม่าล่าพิเศษ', sales: 98, revenue: 58800, color: '#f59e0b' },
-      { name: 'เนื้อหม่าล่า', sales: 87, revenue: 52200, color: '#10b981' },
-      { name: 'ทะเลหม่าล่า', sales: 65, revenue: 45500, color: '#3b82f6' },
-      { name: 'ผักหม่าล่า', sales: 43, revenue: 25800, color: '#8b5cf6' }
-    ];
-    return products;
-  }, []);
+    const productSales = {};
+    
+    // นับยอดขายแต่ละสินค้าจาก orders
+    filteredOrders.forEach(order => {
+      (order.items || []).forEach(item => {
+        const productId = item.productId || item.id;
+        const productName = item.name || item.productName || `สินค้า #${productId}`;
+        const quantity = Number(item.quantity || 1);
+        const price = Number(item.price || item.unitPrice || 0);
+        const revenue = quantity * price;
 
-  // Performance metrics
+        if (!productSales[productId]) {
+          productSales[productId] = {
+            id: productId,
+            name: productName,
+            sales: 0,
+            revenue: 0,
+            color: ['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6'][Object.keys(productSales).length % 5]
+          };
+        }
+        
+        productSales[productId].sales += quantity;
+        productSales[productId].revenue += revenue;
+      });
+    });
+
+    // เรียงตามยอดขายและเอาแค่ 5 อันดับแรก
+    return Object.values(productSales)
+      .sort((a, b) => b.sales - a.sales)
+      .slice(0, 5);
+  }, [filteredOrders]);
+
+  // Performance metrics จากข้อมูลจริง
   const performanceMetrics = React.useMemo(() => {
     const avgOrderValue = totalRevenue / (totalOrders || 1);
     const todayOrders = filteredOrders.filter(o => 
       dayjs(o.createdAt).isSame(dayjs(), 'day')
+    ).length;
+    
+    const thisWeekOrders = filteredOrders.filter(o => 
+      dayjs(o.createdAt).isSame(dayjs(), 'week')
+    ).length;
+    
+    const lastWeekOrders = orders.filter(o => 
+      dayjs(o.createdAt).isSame(dayjs().subtract(1, 'week'), 'week')
+    ).length;
+    
+    const weeklyGrowth = lastWeekOrders > 0 
+      ? (((thisWeekOrders - lastWeekOrders) / lastWeekOrders) * 100).toFixed(1)
+      : 0;
+
+    // คำนวณอัตราการแปลง (สมมติจากจำนวน users ที่มี orders)
+    const usersWithOrders = new Set(filteredOrders.map(o => o.userId || o.customerId)).size;
+    const conversionRate = users.length > 0 ? ((usersWithOrders / users.length) * 100).toFixed(1) : 0;
+    
+    // ผู้ใช้ออนไลน์ (สมมติจากผู้ใช้ที่มี activity ใน 24 ชั่วโมงล่าสุด)
+    const onlineUsers = users.filter(u => 
+      u.lastActive && dayjs(u.lastActive).isAfter(dayjs().subtract(24, 'hours'))
     ).length;
     
     return [
@@ -277,152 +326,110 @@ export default function AdminDashboard() {
         value: `฿${avgOrderValue.toFixed(0)}`,
         icon: FaMoneyBillWave,
         color: '#10b981',
-        change: '+5.2%'
+        change: avgOrderValue > 0 ? `฿${avgOrderValue.toFixed(0)}` : 'ไม่มีข้อมูล'
       },
       {
         title: 'ออเดอร์วันนี้',
         value: todayOrders,
         icon: FaShoppingCart,
         color: '#3b82f6',
-        change: '+12.1%'
+        change: `${weeklyGrowth > 0 ? '+' : ''}${weeklyGrowth}% จากสัปดาห์ที่แล้ว`
       },
       {
         title: 'อัตราการแปลง',
-        value: '73.5%',
-        icon: FaTrendingUp,
+        value: `${conversionRate}%`,
+        icon: FaArrowUp,
         color: '#f59e0b',
-        change: '+2.8%'
+        change: `${usersWithOrders}/${users.length} ผู้ใช้`
       },
       {
         title: 'ผู้ใช้ออนไลน์',
-        value: '24',
+        value: onlineUsers,
         icon: FaUsers,
         color: '#ef4444',
-        change: 'แบบเรียลไทม์'
+        change: 'ใน 24 ชั่วโมงล่าสุด'
       }
     ];
-  }, [totalRevenue, totalOrders, filteredOrders]);
+  }, [totalRevenue, totalOrders, filteredOrders, orders, users]);
 
-  // Activity feed data
+  // Activity feed จากข้อมูลจริง
   const activityFeed = React.useMemo(() => {
-    const activities = [
-      {
-        id: 1,
+    const activities = [];
+    
+    // เพิ่ม recent orders
+    const recentOrders = filteredOrders
+      .sort((a, b) => dayjs(b.createdAt).valueOf() - dayjs(a.createdAt).valueOf())
+      .slice(0, 3);
+    
+    recentOrders.forEach(order => {
+      activities.push({
+        id: `order-${order.id}`,
         type: 'order',
         icon: FaShoppingCart,
-        message: 'ออเดอร์ใหม่ #1234 จากลูกค้า นายสมชาย',
-        time: dayjs().subtract(5, 'minutes'),
+        message: `ออเดอร์ใหม่ #${order.id} ${order.customerName ? `จาก ${order.customerName}` : 'จากลูกค้าทั่วไป'}`,
+        time: dayjs(order.createdAt),
         color: '#10b981'
-      },
-      {
-        id: 2,
+      });
+    });
+
+    // เพิ่ม completed orders
+    const completedOrders = filteredOrders
+      .filter(o => o.status === 'completed')
+      .sort((a, b) => dayjs(b.updatedAt || b.createdAt).valueOf() - dayjs(a.updatedAt || a.createdAt).valueOf())
+      .slice(0, 2);
+    
+    completedOrders.forEach(order => {
+      activities.push({
+        id: `completed-${order.id}`,
         type: 'payment',
         icon: FaMoneyBillWave,
-        message: 'ชำระเงินสำเร็จ ออเดอร์ #1233 จำนวน ฿480',
-        time: dayjs().subtract(12, 'minutes'),
+        message: `ออเดอร์ #${order.id} เสร็จสิ้น ยอดรวม ฿${Number(order.total || 0).toLocaleString()}`,
+        time: dayjs(order.updatedAt || order.createdAt),
         color: '#f59e0b'
-      },
-      {
-        id: 3,
+      });
+    });
+
+    // เพิ่ม new users
+    const recentUsers = users
+      .filter(u => u.createdAt)
+      .sort((a, b) => dayjs(b.createdAt).valueOf() - dayjs(a.createdAt).valueOf())
+      .slice(0, 2);
+    
+    recentUsers.forEach(user => {
+      activities.push({
+        id: `user-${user.id}`,
         type: 'user',
         icon: FaUsers,
-        message: 'ผู้ใช้ใหม่ลงทะเบียน: นางสาวมารี',
-        time: dayjs().subtract(25, 'minutes'),
+        message: `ผู้ใช้ใหม่ลงทะเบียน: ${user.name || user.username}`,
+        time: dayjs(user.createdAt),
         color: '#3b82f6'
-      },
-      {
-        id: 4,
-        type: 'order',
-        icon: FaShoppingCart,
-        message: 'ออเดอร์ #1232 เสร็จสิ้น รอการส่งมอบ',
-        time: dayjs().subtract(38, 'minutes'),
-        color: '#10b981'
-      },
-      {
-        id: 5,
+      });
+    });
+
+    // เพิ่ม stock alerts (สินค้าที่มีสต็อกน้อย)
+    const lowStockProducts = products
+      .filter(p => p.stock !== undefined && p.stock < 10)
+      .slice(0, 2);
+    
+    lowStockProducts.forEach(product => {
+      activities.push({
+        id: `stock-${product.id}`,
         type: 'alert',
         icon: FaBell,
-        message: 'สินค้า "หม่าล่าต้นตำรับ" เหลือน้อย (5 ชิ้น)',
-        time: dayjs().subtract(45, 'minutes'),
+        message: `สินค้า "${product.name}" เหลือน้อย (${product.stock} ชิ้น)`,
+        time: dayjs().subtract(Math.random() * 60, 'minutes'),
         color: '#ef4444'
-      }
-    ];
-    return activities;
-  }, []);
+      });
+    });
+
+    // เรียงตามเวลาล่าสุด
+    return activities
+      .sort((a, b) => b.time.valueOf() - a.time.valueOf())
+      .slice(0, 5);
+  }, [filteredOrders, users, products]);
 
   return (
-    <div className={`${styles.dashboardContainer} ${isDarkMode ? styles.darkMode : ''}`}>
-      {/* Dashboard Header */}
-      <div className={styles.dashboardHeader}>
-        <div className={styles.headerContent}>
-          <div className={styles.headerMain}>
-            <h1 className={styles.dashboardTitle}>
-              <FaChartLine className={styles.titleIcon} />
-              ภาพรวมร้านหม่าล่า
-            </h1>
-            <p className={styles.dashboardSubtitle}>
-              ยินดีต้อนรับกลับมา, Admin • {currentTime.format("dddd, DD MMMM YYYY")}
-            </p>
-          </div>
-          <div className={styles.widgetsContainer}>
-            {/* Clock Widget */}
-            <div className={styles.clockWidget}>
-              <div className={styles.widgetIcon}>
-                <FaClock />
-              </div>
-              <div className={styles.digitalClock}>
-                <div className={styles.timeDisplay}>
-                  {currentTime.format("HH:mm:ss")}
-                </div>
-                <div className={styles.dateDisplay}>
-                  {currentTime.format("DD/MM/YYYY")}
-                </div>
-              </div>
-            </div>
-            
-            {/* Weather Widget */}
-            <div className={styles.weatherWidget}>
-              <div className={styles.widgetIcon}>
-                <FaCloudSun />
-              </div>
-              <div className={styles.weatherInfo}>
-                <div className={styles.tempDisplay}>
-                  {weather.temp}°C
-                </div>
-                <div className={styles.locationDisplay}>
-                  {weather.location}
-                </div>
-                <div className={styles.weatherDetails}>
-                  <span className={styles.weatherDetail}>
-                    <FaTint /> {weather.humidity}%
-                  </span>
-                  <span className={styles.weatherDetail}>
-                    <FaWind /> {weather.windSpeed} km/h
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div className={styles.headerActions}>
-          <button 
-            className={styles.themeToggle}
-            onClick={() => setIsDarkMode(!isDarkMode)}
-            title="สลับธีม"
-          >
-            {isDarkMode ? <FaSun /> : <FaMoon />}
-          </button>
-          <button className={styles.actionButton} onClick={() => window.location.reload()}>
-            <FaRefresh />
-            รีเฟรช
-          </button>
-          <button className={styles.actionButton}>
-            <FaDownload />
-            ส่งออกรายงาน
-          </button>
-        </div>
-      </div>
-
+    <div className={styles.dashboardContainer}>
       {/* Quick Actions */}
       <div className={styles.quickActionsSection}>
         <h2 className={styles.sectionTitle}>การดำเนินการด่วน</h2>
@@ -445,10 +452,12 @@ export default function AdminDashboard() {
           })}
         </div>
       </div>
+
+      {/* Filters Section - ปรับให้เรียบง่าย */}
       <div className={styles.filtersSection}>
         <h2 className={styles.sectionTitle}>
           <FaCalendarAlt className={styles.sectionIcon} />
-          ช่วงวันที่
+          เลือกช่วงวันที่
         </h2>
         <div className={styles.filtersCard}>
           <div className={styles.filterGroup}>
@@ -488,7 +497,7 @@ export default function AdminDashboard() {
       {loading ? (
         <div className={styles.loadingSection}>
           <div className={styles.loadingSpinner}>
-            <FaRefresh className={styles.spinningIcon} />
+            <FaSync className={styles.spinningIcon} />
           </div>
           <p>กำลังโหลดข้อมูล...</p>
         </div>
@@ -496,7 +505,7 @@ export default function AdminDashboard() {
         <>
           <div className={styles.statsSection}>
             <h2 className={styles.sectionTitle}>
-              <FaTrendingUp className={styles.sectionIcon} />
+              <FaChartLine className={styles.sectionIcon} />
               สถิติสำคัญ
             </h2>
             <div className={styles.statsGrid}>
@@ -511,7 +520,7 @@ export default function AdminDashboard() {
                         }`}
                       >
                         {stat.isUp === null ? "" : stat.isUp ? 
-                          <FaTrendingUp /> : <FaTrendingDown />
+                          <FaArrowUp /> : <FaArrowDown />
                         }
                         {stat.change}
                       </div>
