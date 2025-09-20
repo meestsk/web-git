@@ -3,8 +3,10 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [react()],
-  server: { 
-    host: true,    // host:true = 0.0.0.0
-    port: 5173 
+  server: {
+    host: true,      // เปิดให้เครื่องอื่นใน LAN เข้าได้ (ถ้าต้องการ)
+    open: true,      // เปิดเบราว์เซอร์อัตโนมัติ
+    port: 5173       // จะเปลี่ยนพอร์ตก็ได้
+    // open: '/dashboard' // ถ้าอยากเปิด path เฉพาะ
   }
 })
