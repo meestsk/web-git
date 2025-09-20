@@ -4,9 +4,9 @@
   "version": "0.0.2",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --host --open", 
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview --host --open"
   },
   "dependencies": {
     "dayjs": "^1.11.13",
