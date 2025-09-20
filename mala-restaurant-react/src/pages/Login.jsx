@@ -33,7 +33,7 @@ export default function Login() {
       if (user.role === "ADMIN") {
         redirectTo = "/admin";
       } else if (user.role === "STAFF") {
-        redirectTo = "/staff/pos";
+        redirectTo = "/staff/workflow";
       } else {
         redirectTo = "/";
       }

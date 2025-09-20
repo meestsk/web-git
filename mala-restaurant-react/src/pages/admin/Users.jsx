@@ -1,6 +1,5 @@
 import React from 'react'
 import { useDataStore } from '../../store/data.js'
-import AdminNavigation from '../../components/AdminNavigation.jsx'
 import ConfirmModal from '../../components/ConfirmModal.jsx'
 import styles from './Users.module.css'
 import { makePasswordHash } from '../../utils/hash.js'
@@ -126,7 +125,7 @@ export default function Users(){
     setEditId(u.id)
     setForm({
       username: u.username,
-      password: u.password || '',
+      password: '', // ไม่แสดงรหัสผ่านเดิม เพื่อความปลอดภัย
       name: u.name,
       role: u.role || 'STAFF',
       active: !!u.active,
@@ -182,10 +181,7 @@ export default function Users(){
     }))
 
   return(
-    <div className={styles.usersContainer}>
-      <AdminNavigation variant="horizontal" />
-      <AdminNavigation variant="breadcrumb" />
-      
+    <div className={styles.usersContainer}>      
       {/* Error Display */}
       {error && (
         <div className={styles.errorBanner}>
@@ -517,12 +513,13 @@ export default function Users(){
 
       {/* Delete Confirmation Modal */}
       <ConfirmModal
-        isOpen={showDeleteModal}
-        onClose={() => setShowDeleteModal(false)}
+        open={showDeleteModal}
+         onCancel={() => setShowDeleteModal(false)}
         onConfirm={handleDeleteConfirm}
         title="ยืนยันการลบผู้ใช้งาน"
         message={`คุณแน่ใจหรือไม่ที่จะลบผู้ใช้งาน "${userToDelete?.name}" (${userToDelete?.username})?`}
-        variant="warning"
+        danger
+        icon="warning"
       />
     </div>
   )
