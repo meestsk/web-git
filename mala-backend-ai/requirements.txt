@@ -7,3 +7,4 @@ numpy
 Flask-SQLAlchemy
 psycopg2-binary
 SQLAlchemy>=2.0
+dotenv
