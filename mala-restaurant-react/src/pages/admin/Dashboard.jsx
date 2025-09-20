@@ -42,31 +42,6 @@ dayjs.extend(isSameOrAfter);
 dayjs.extend(isSameOrBefore);
 dayjs.extend(relativeTime);
 dayjs.locale('th');
-function toArray(maybe) {
-  if (Array.isArray(maybe)) return maybe;
-  if (maybe?.data && Array.isArray(maybe.data)) return maybe.data;
-  if (maybe?.items && Array.isArray(maybe.items)) return maybe.items;
-  return [];
-}
-
-function coerceDate(v) {
-  if (!v) return null;
-  const d = typeof v === 'number' ? dayjs(v) : dayjs(v);
-  return d.isValid() ? d : null;
-}
-
-function normalizeOrder(raw) {
-  const createdRaw = raw.createdAt ?? raw.created_at ?? raw.created ?? raw.date;
-  const created = coerceDate(createdRaw);
-  const totalNum = Number(
-    raw.total ?? raw.amount ?? raw.grandTotal ?? raw.price ?? 0
-  );
-  return {
-    ...raw,
-    createdAt: created ? created.toISOString() : null,
-    total: Number.isFinite(totalNum) ? totalNum : 0,
-  };
-}
 
 /* ===== helpers ===== */
 function daysBetweenISO(startISO, endISO) {
@@ -93,63 +68,51 @@ export default function AdminDashboard() {
     dayjs().subtract(7, "day").format("YYYY-MM-DD")
   );
   const [endDate, setEndDate] = React.useState(dayjs().format("YYYY-MM-DD"));
-const [safeStart, safeEnd] = React.useMemo(() => {
-  const s = dayjs(startDate, "YYYY-MM-DD");
-  const e = dayjs(endDate, "YYYY-MM-DD");
-  return s.isAfter(e)
-    ? [e.format("YYYY-MM-DD"), s.format("YYYY-MM-DD")]
-    : [s.format("YYYY-MM-DD"), e.format("YYYY-MM-DD")];
-}, [startDate, endDate]);
 
   // โหลดข้อมูลจาก API
   const loadData = React.useCallback(async () => {
-  try {
-    setLoading(true);
-    setError(null);
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // ดึงข้อมูลแบบ parallel
+      const [ordersRes, productsRes, usersRes, paymentsRes] = await Promise.allSettled([
+        API.orders.list({ startDate, endDate }),
+        API.products.list(),
+        API.users.list(),
+        API.payments ? API.payments.list({ startDate, endDate }) : Promise.resolve([])
+      ]);
 
-    const [ordersRes, productsRes, usersRes, paymentsRes] = await Promise.allSettled([
-      API.orders.list({ startDate: safeStart, endDate: safeEnd }),
-      API.products.list(),
-      API.users.list(),
-      API.payments ? API.payments.list({ startDate: safeStart, endDate: safeEnd }) : Promise.resolve([])
-    ]);
+      // Process results
+      if (ordersRes.status === 'fulfilled') {
+        setOrders(ordersRes.value || []);
+      } else {
+        console.warn('Failed to load orders:', ordersRes.reason);
+      }
 
-    if (ordersRes.status === 'fulfilled') {
-      const arr = toArray(ordersRes.value);
-      setOrders(arr.map(normalizeOrder));
-    } else {
-      console.warn('Failed to load orders:', ordersRes.reason);
-      setOrders([]);
+      if (productsRes.status === 'fulfilled') {
+        setProducts(productsRes.value || []);
+      } else {
+        console.warn('Failed to load products:', productsRes.reason);
+      }
+
+      if (usersRes.status === 'fulfilled') {
+        setUsers(usersRes.value || []);
+      } else {
+        console.warn('Failed to load users:', usersRes.reason);
+      }
+
+      if (paymentsRes.status === 'fulfilled') {
+        setPayments(paymentsRes.value || []);
+      }
+
+    } catch (err) {
+      console.error('Error loading dashboard data:', err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
     }
-
-    if (productsRes.status === 'fulfilled') {
-      setProducts(toArray(productsRes.value));
-    } else {
-      console.warn('Failed to load products:', productsRes.reason);
-      setProducts([]);
-    }
-
-    if (usersRes.status === 'fulfilled') {
-      setUsers(toArray(usersRes.value));
-    } else {
-      console.warn('Failed to load users:', usersRes.reason);
-      setUsers([]);
-    }
-
-    if (paymentsRes.status === 'fulfilled') {
-      setPayments(toArray(paymentsRes.value));
-    } else {
-      setPayments([]);
-    }
-
-  } catch (err) {
-    console.error('Error loading dashboard data:', err);
-    setError(err.message);
-  } finally {
-    setLoading(false);
-  }
-}, [safeStart, safeEnd]);
-
+  }, [startDate, endDate]);
 
   // โหลดข้อมูลเมื่อ component mount และเมื่อช่วงวันที่เปลี่ยน
   React.useEffect(() => {
@@ -157,17 +120,14 @@ const [safeStart, safeEnd] = React.useMemo(() => {
   }, [loadData]);
 
   // คัดกรองออเดอร์ตามช่วงวันที่ (ถ้า API ไม่รองรับ filter ให้ใช้ตรงนี้)
- const filteredOrders = React.useMemo(() => {
-  const start = dayjs(safeStart, "YYYY-MM-DD").startOf("day");
-  const end = dayjs(safeEnd, "YYYY-MM-DD").endOf("day");
-  return (orders || []).filter((o) => {
-    if (!o.createdAt) return false;
-    const dt = dayjs(o.createdAt);
-    if (!dt.isValid()) return false;
-    return dt.isSameOrAfter(start) && dt.isSameOrBefore(end);
-  });
-}, [orders, safeStart, safeEnd]);
-
+  const filteredOrders = React.useMemo(() => {
+    const start = dayjs(startDate, "YYYY-MM-DD").startOf("day");
+    const end = dayjs(endDate, "YYYY-MM-DD").endOf("day");
+    return (orders || []).filter((o) => {
+      const dt = dayjs(o.createdAt);
+      return dt.isSameOrAfter(start) && dt.isSameOrBefore(end);
+    });
+  }, [orders, startDate, endDate]);
 
   // รายชื่อเดือนภาษาไทย (ตัวย่อ)
   const TH_MONTHS = [
@@ -571,7 +531,7 @@ const [safeStart, safeEnd] = React.useMemo(() => {
               ))}
             </div>
           </div>
- 
+
           {/* Chart Section */}
           <div className={styles.chartSection}>
             <h2 className={styles.sectionTitle}>
@@ -585,65 +545,48 @@ const [safeStart, safeEnd] = React.useMemo(() => {
                 </div>
               ) : (
                 <ResponsiveContainer width="100%" height={360}>
-                <LineChart data={dailyStats}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis
-                    dataKey="dateISO"
-                    type="category"
-                    tickFormatter={fmtTick}
-                    interval="preserveStartEnd"
-                    minTickGap={compact ? 12 : 6}
-                  />
-                  {/* ถ้าข้อมูลเป็นศูนย์ทั้งหมด ให้โดเมนอย่างน้อย 0..1 */}
-                  <YAxis
-                    yAxisId="left"
-                    allowDecimals={false}
-                    domain={[0, (dataMax) => (Number(dataMax) > 0 ? dataMax : 1)]}
-                  />
-                  <YAxis
-                    yAxisId="right"
-                    orientation="right"
-                    tickFormatter={(v) => `฿${v.toLocaleString()}`}
-                    domain={[0, (dataMax) => (Number(dataMax) > 0 ? dataMax : 1)]}
-                  />
-                  <Tooltip
-                    labelFormatter={fmtTooltipLabel}
-                    formatter={(value, name, props) => {
-                      if (props?.dataKey === 'revenue') {
-                        return [`฿${Number(value || 0).toLocaleString()}`, 'รายรับ (บาท)']
-                      }
-                      if (props?.dataKey === 'orders') {
-                        return [Number(value || 0), 'จำนวนออเดอร์']
-                      }
-                      return [value, name]
-                      
-                    }}
-                    
-                  />
-                  <Legend />
-                  <Line
-                    yAxisId="left"
-                    type="monotone"
-                    dataKey="orders"
-                    stroke="#dc2626"
-                    strokeWidth={3}
-                    name="จำนวนออเดอร์"
-                    connectNulls
-                    dot={{ r: 3 }}
-                  />
-                  <Line
-                    yAxisId="right"
-                    type="monotone"
-                    dataKey="revenue"
-                    stroke="#16a34a"
-                    strokeWidth={3}
-                    name="รายรับ (บาท)"
-                    connectNulls
-                    dot={{ r: 3 }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-
+                  <LineChart data={dailyStats}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis
+                      dataKey="dateISO"
+                      tickFormatter={fmtTick}
+                      interval="preserveStartEnd"
+                      minTickGap={compact ? 12 : 6}
+                    />
+                    <YAxis yAxisId="left" allowDecimals={false} />
+                    <YAxis
+                      yAxisId="right"
+                      orientation="right"
+                      tickFormatter={(v) => `฿${v.toLocaleString()}`}
+                    />
+                    <Tooltip
+                      labelFormatter={fmtTooltipLabel}
+                      formatter={(value, name) => {
+                        if (name === "รายรับ (บาท)") {
+                          return [`฿${Number(value).toLocaleString()}`, name];
+                        }
+                        return [value, name];
+                      }}
+                    />
+                    <Legend />
+                    <Line
+                      yAxisId="left"
+                      type="monotone"
+                      dataKey="orders"
+                      stroke="#dc2626"
+                      strokeWidth={3}
+                      name="จำนวนออเดอร์"
+                    />
+                    <Line
+                      yAxisId="right"
+                      type="monotone"
+                      dataKey="revenue"
+                      stroke="#16a34a"
+                      strokeWidth={3}
+                      name="รายรับ (บาท)"
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
               )}
             </div>
           </div>
