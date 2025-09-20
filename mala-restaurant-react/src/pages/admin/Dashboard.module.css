@@ -80,6 +80,10 @@
   background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse"><path d="M 20 0 L 0 0 0 20" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="1"/></pattern></defs><rect width="100" height="100" fill="url(%23grid)"/></svg>');
   pointer-events: none;
 }
+/* Patch Recharts: ป้องกัน tspan แตกเป็นแนวตั้ง */
+/* ใน Dashboard.module.css */
+
+
 
 .headerContent {
   display: flex;
@@ -1729,3 +1733,40 @@
     font-size: 2rem;
   }
 }
+/* === FIX 1: ให้ทุก section ยุบได้เวลาวางใน flex/grid (กันกว้าง = 0) === */
+.dashboardContainer,
+.quickActionsSection,
+.filtersSection,
+.statsSection,
+.chartSection,
+.performanceSection,
+.topProductsSection,
+.recentOrdersSection,
+.activitySection {
+  width: 100%;
+  min-width: 0;              /* สำคัญสุด */
+}
+
+/* === FIX 2: กล่องกราฟต้องมีความสูงจริง ๆ === */
+.chartCard {
+  /* คงของเดิมไว้ แต่เพิ่มสองบรรทัดนี้ */
+  min-height: 360px;         /* ให้มีความสูงแน่นอน */
+  position: relative;        /* เพื่อให้ลูก fill ได้ */
+}
+
+/* ชั้นในให้กินเต็ม 100% เสมอ (กัน wrapper บางธีมที่ตั้ง size แปลก) */
+.chartCard > div,
+.chartCard .recharts-wrapper {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* === FIX 3: ถ้ากราฟอยู่ในกริด ให้ตั้ง minmax(0,1fr) เพื่อให้ยุบได้จริง === */
+.statsGrid,
+.metricsGrid,
+.chartsContainer {
+  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));  /* แทน 280px */
+}
+
+/* === FIX 4: ตาราง/คอนเทนต์ยาวไม่ให้ดันพาเรนต์กว้างเป็น 0 === */
+.tableWrapper { min-width: 0; overflow: auto; }

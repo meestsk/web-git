@@ -513,12 +513,13 @@ export default function Users(){
 
       {/* Delete Confirmation Modal */}
       <ConfirmModal
-        isOpen={showDeleteModal}
-        onClose={() => setShowDeleteModal(false)}
+        open={showDeleteModal}
+         onCancel={() => setShowDeleteModal(false)}
         onConfirm={handleDeleteConfirm}
         title="ยืนยันการลบผู้ใช้งาน"
         message={`คุณแน่ใจหรือไม่ที่จะลบผู้ใช้งาน "${userToDelete?.name}" (${userToDelete?.username})?`}
-        variant="warning"
+        danger
+        icon="warning"
       />
     </div>
   )

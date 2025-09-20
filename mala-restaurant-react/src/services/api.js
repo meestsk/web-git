@@ -1,3 +1,4 @@
+import { handleFetchError } from '../utils/errorHandler';
 // src/services/api.js
 // ✅ ใช้ dynamic host เพื่อรองรับทั้ง localhost และ mobile hotspot
 const host = window.location.hostname; // จะเป็น localhost หรือ 172.20.10.3
@@ -129,11 +130,13 @@ async function http(path, opts = {}) {
       `First 200 chars: ${text.slice(0,200)}`
     );
     
+    
   } catch (fetchError) {
     console.error('❌ Fetch Error Details:');
     console.error('  Message:', fetchError.message);
     console.error('  Name:', fetchError.name);
     console.error('  Stack:', fetchError.stack);
+    
     
     // Check for common network errors
     if (fetchError.name === 'TypeError' && fetchError.message.includes('fetch')) {
