@@ -6,30 +6,20 @@ import {
   FaUsers,
   FaArrowUp,
   FaArrowDown,
+<<<<<<< HEAD
   FaCalendarAlt,
   FaSearch,
   FaSync,
   FaEye,
   FaBell,
   FaFire
+=======
+  FaEye,
+  FaBell
+>>>>>>> 90dd9c1 (update)
 } from 'react-icons/fa';
 import API from "../../services/api";
 import styles from "./Dashboard.module.css";
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  PieChart,
-  Pie,
-  Cell
-} from "recharts";
 import dayjs from "dayjs";
 import isSameOrAfter from "dayjs/plugin/isSameOrAfter";
 import isSameOrBefore from "dayjs/plugin/isSameOrBefore";
@@ -43,20 +33,50 @@ dayjs.extend(isSameOrBefore);
 dayjs.extend(relativeTime);
 dayjs.locale('th');
 
-/* ===== helpers ===== */
+function toArray(maybe) {
+  if (Array.isArray(maybe)) return maybe;
+  if (maybe?.data && Array.isArray(maybe.data)) return maybe.data;
+  if (maybe?.items && Array.isArray(maybe.items)) return maybe.items;
+  return [];
+}
+
+function coerceDate(v) {
+  if (!v) return null;
+  const d = typeof v === 'number' ? dayjs(v) : dayjs(v);
+  return d.isValid() ? d : null;
+}
+
+function normalizeOrder(raw) {
+  const createdRaw = raw.createdAt ?? raw.created_at ?? raw.created ?? raw.date;
+  const created = coerceDate(createdRaw);
+  const totalNum = Number(
+    raw.total ?? raw.amount ?? raw.grandTotal ?? raw.price ?? 0
+  );
+  return {
+    ...raw,
+    createdAt: created ? created.toISOString() : null,
+    total: Number.isFinite(totalNum) ? totalNum : 0,
+  };
+}
+
+/* helpers */
 function daysBetweenISO(startISO, endISO) {
   const out = [];
   let d = dayjs(startISO, "YYYY-MM-DD").startOf("day");
   const e = dayjs(endISO, "YYYY-MM-DD").endOf("day");
   while (d.isSameOrBefore(e, "day")) {
-    out.push(d.format("YYYY-MM-DD")); // เก็บ ISO
+    out.push(d.format("YYYY-MM-DD"));
     d = d.add(1, "day");
   }
   return out;
 }
 
 export default function AdminDashboard() {
+<<<<<<< HEAD
   // ดึงข้อมูลจาก API
+=======
+  // state
+>>>>>>> 90dd9c1 (update)
   const [orders, setOrders] = React.useState([]);
   const [products, setProducts] = React.useState([]);
   const [users, setUsers] = React.useState([]);
@@ -64,11 +84,11 @@ export default function AdminDashboard() {
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState(null);
 
-  const [startDate, setStartDate] = React.useState(
-    dayjs().subtract(7, "day").format("YYYY-MM-DD")
-  );
-  const [endDate, setEndDate] = React.useState(dayjs().format("YYYY-MM-DD"));
+  // fixed ช่วงวันที่ (คงไว้ 7 วันล่าสุด สำหรับคำนวณสถิติ)
+  const startDate = dayjs().subtract(7, "day").format("YYYY-MM-DD");
+  const endDate = dayjs().format("YYYY-MM-DD");
 
+<<<<<<< HEAD
   // โหลดข้อมูลจาก API
   const loadData = React.useCallback(async () => {
     try {
@@ -120,37 +140,65 @@ export default function AdminDashboard() {
   }, [loadData]);
 
   // คัดกรองออเดอร์ตามช่วงวันที่ (ถ้า API ไม่รองรับ filter ให้ใช้ตรงนี้)
+=======
+  const [safeStart, safeEnd] = React.useMemo(() => {
+    const s = dayjs(startDate, "YYYY-MM-DD");
+    const e = dayjs(endDate, "YYYY-MM-DD");
+    return s.isAfter(e)
+      ? [e.format("YYYY-MM-DD"), s.format("YYYY-MM-DD")]
+      : [s.format("YYYY-MM-DD"), e.format("YYYY-MM-DD")];
+  }, [startDate, endDate]);
+
+  // load data
+  const loadData = React.useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const [ordersRes, productsRes, usersRes, paymentsRes] = await Promise.allSettled([
+        API.orders.list({ startDate: safeStart, endDate: safeEnd }),
+        API.products.list(),
+        API.users.list(),
+        API.payments ? API.payments.list({ startDate: safeStart, endDate: safeEnd }) : Promise.resolve([])
+      ]);
+
+      if (ordersRes.status === 'fulfilled') {
+        const arr = toArray(ordersRes.value);
+        setOrders(arr.map(normalizeOrder));
+      } else {
+        console.warn('Failed to load orders:', ordersRes.reason);
+        setOrders([]);
+      }
+
+      setProducts(productsRes.status === 'fulfilled' ? toArray(productsRes.value) : []);
+      setUsers(usersRes.status === 'fulfilled' ? toArray(usersRes.value) : []);
+      setPayments(paymentsRes.status === 'fulfilled' ? toArray(paymentsRes.value) : []);
+    } catch (err) {
+      console.error('Error loading dashboard data:', err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [safeStart, safeEnd]);
+
+  React.useEffect(() => { loadData(); }, [loadData]);
+
+  // filter orders
+>>>>>>> 90dd9c1 (update)
   const filteredOrders = React.useMemo(() => {
-    const start = dayjs(startDate, "YYYY-MM-DD").startOf("day");
-    const end = dayjs(endDate, "YYYY-MM-DD").endOf("day");
+    const start = dayjs(safeStart, "YYYY-MM-DD").startOf("day");
+    const end = dayjs(safeEnd, "YYYY-MM-DD").endOf("day");
     return (orders || []).filter((o) => {
+      if (!o.createdAt) return false;
       const dt = dayjs(o.createdAt);
-      return dt.isSameOrAfter(start) && dt.isSameOrBefore(end);
+      return dt.isValid() && dt.isSameOrAfter(start) && dt.isSameOrBefore(end);
     });
-  }, [orders, startDate, endDate]);
+  }, [orders, safeStart, safeEnd]);
 
-  // รายชื่อเดือนภาษาไทย (ตัวย่อ)
-  const TH_MONTHS = [
-    "ม.ค.",
-    "ก.พ.",
-    "มี.ค.",
-    "เม.ย.",
-    "พ.ค.",
-    "มิ.ย.",
-    "ก.ค.",
-    "ส.ค.",
-    "ก.ย.",
-    "ต.ค.",
-    "พ.ย.",
-    "ธ.ค.",
-  ];
-
-  // ====== ทำ dailyStats ด้วย key = ISO แล้วค่อยฟอร์แมตตอนแสดง ======
+  // daily stats (ใช้แค่คำนวณสรุป ไม่ได้แสดงกราฟ)
   const dailyStats = React.useMemo(() => {
-    const days = daysBetweenISO(startDate, endDate);
-    const base = Object.fromEntries(
-      days.map((iso) => [iso, { dateISO: iso, orders: 0, revenue: 0 }])
-    );
+    const days = daysBetweenISO(safeStart, safeEnd);
+    const base = Object.fromEntries(days.map((iso) => [iso, { dateISO: iso, orders: 0, revenue: 0 }]));
     for (const o of filteredOrders) {
       const iso = dayjs(o.createdAt).format("YYYY-MM-DD");
       if (!base[iso]) continue;
@@ -158,32 +206,20 @@ export default function AdminDashboard() {
       base[iso].revenue += Number(o.total || 0);
     }
     return Object.values(base);
-  }, [filteredOrders, startDate, endDate]);
+  }, [filteredOrders, safeStart, safeEnd]);
 
-  // สรุปยอดรวม
+  // summary
   const totalOrders = filteredOrders.length;
-  const totalRevenue = filteredOrders.reduce(
-    (sum, o) => sum + Number(o.total || 0),
-    0
-  );
+  const totalRevenue = filteredOrders.reduce((sum, o) => sum + Number(o.total || 0), 0);
 
-  // เปอร์เซ็นต์เปลี่ยนแปลง: วันล่าสุด vs ก่อนหน้า
   const lastDay = dailyStats[dailyStats.length - 1];
   const prevDay = dailyStats[dailyStats.length - 2];
-  const orderChange =
-    lastDay && prevDay
-      ? (
-          ((lastDay.orders - prevDay.orders) / (prevDay.orders || 1)) *
-          100
-        ).toFixed(1) + "%"
-      : "0%";
-  const revenueChange =
-    lastDay && prevDay
-      ? (
-          ((lastDay.revenue - prevDay.revenue) / (prevDay.revenue || 1)) *
-          100
-        ).toFixed(1) + "%"
-      : "0%";
+  const orderChange = lastDay && prevDay
+    ? (((lastDay.orders - prevDay.orders) / (prevDay.orders || 1)) * 100).toFixed(1) + "%"
+    : "0%";
+  const revenueChange = lastDay && prevDay
+    ? (((lastDay.revenue - prevDay.revenue) / (prevDay.revenue || 1)) * 100).toFixed(1) + "%"
+    : "0%";
 
   const stats = [
     {
@@ -194,15 +230,13 @@ export default function AdminDashboard() {
     },
     {
       title: "รายรับ",
-      value: `฿${totalRevenue.toLocaleString(undefined, {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      })}`,
+      value: `฿${totalRevenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
       change: revenueChange,
       isUp: lastDay && prevDay ? lastDay.revenue >= prevDay.revenue : null,
     },
   ];
 
+<<<<<<< HEAD
   /* ===== Responsive tick: ถ้ากว้าง ≤ 480px ให้สั้นเป็น “D ม.ค.” ไม่งั้น “DD/MM” ===== */
   const chartWrapRef = React.useRef(null);
   const [chartW, setChartW] = React.useState(0);
@@ -361,6 +395,24 @@ export default function AdminDashboard() {
       .sort((a, b) => dayjs(b.createdAt).valueOf() - dayjs(a.createdAt).valueOf())
       .slice(0, 3);
     
+=======
+  // quick actions
+  const quickActions = [
+    { icon: FaUsers, label: 'จัดการผู้ใช้', path: '/admin/users', color: '#3b82f6', count: users.length },
+    { icon: FaShoppingCart, label: 'จัดการสินค้า', path: '/admin/products', color: '#10b981', count: products.length },
+    { icon: FaMoneyBillWave, label: 'การชำระเงิน', path: '/admin/payments', color: '#f59e0b', count: payments.length },
+    { icon: FaEye, label: 'ออเดอร์ทั้งหมด', path: '/admin/orders', color: '#ef4444', count: totalOrders },
+  ];
+
+  // activity
+  const activityFeed = React.useMemo(() => {
+    const activities = [];
+
+    const recentOrders = filteredOrders
+      .sort((a, b) => dayjs(b.createdAt).valueOf() - dayjs(a.createdAt).valueOf())
+      .slice(0, 3);
+
+>>>>>>> 90dd9c1 (update)
     recentOrders.forEach(order => {
       activities.push({
         id: `order-${order.id}`,
@@ -372,12 +424,19 @@ export default function AdminDashboard() {
       });
     });
 
+<<<<<<< HEAD
     // เพิ่ม completed orders
+=======
+>>>>>>> 90dd9c1 (update)
     const completedOrders = filteredOrders
       .filter(o => o.status === 'completed')
       .sort((a, b) => dayjs(b.updatedAt || b.createdAt).valueOf() - dayjs(a.updatedAt || a.createdAt).valueOf())
       .slice(0, 2);
+<<<<<<< HEAD
     
+=======
+
+>>>>>>> 90dd9c1 (update)
     completedOrders.forEach(order => {
       activities.push({
         id: `completed-${order.id}`,
@@ -389,12 +448,19 @@ export default function AdminDashboard() {
       });
     });
 
+<<<<<<< HEAD
     // เพิ่ม new users
+=======
+>>>>>>> 90dd9c1 (update)
     const recentUsers = users
       .filter(u => u.createdAt)
       .sort((a, b) => dayjs(b.createdAt).valueOf() - dayjs(a.createdAt).valueOf())
       .slice(0, 2);
+<<<<<<< HEAD
     
+=======
+
+>>>>>>> 90dd9c1 (update)
     recentUsers.forEach(user => {
       activities.push({
         id: `user-${user.id}`,
@@ -406,11 +472,18 @@ export default function AdminDashboard() {
       });
     });
 
+<<<<<<< HEAD
     // เพิ่ม stock alerts (สินค้าที่มีสต็อกน้อย)
     const lowStockProducts = products
       .filter(p => p.stock !== undefined && p.stock < 10)
       .slice(0, 2);
     
+=======
+    const lowStockProducts = products
+      .filter(p => p.stock !== undefined && p.stock < 10)
+      .slice(0, 2);
+
+>>>>>>> 90dd9c1 (update)
     lowStockProducts.forEach(product => {
       activities.push({
         id: `stock-${product.id}`,
@@ -422,7 +495,10 @@ export default function AdminDashboard() {
       });
     });
 
+<<<<<<< HEAD
     // เรียงตามเวลาล่าสุด
+=======
+>>>>>>> 90dd9c1 (update)
     return activities
       .sort((a, b) => b.time.valueOf() - a.time.valueOf())
       .slice(0, 5);
@@ -452,6 +528,7 @@ export default function AdminDashboard() {
           })}
         </div>
       </div>
+<<<<<<< HEAD
 
       {/* Filters Section - ปรับให้เรียบง่าย */}
       <div className={styles.filtersSection}>
@@ -492,13 +569,19 @@ export default function AdminDashboard() {
           </div>
         </div>
       </div>
+=======
+>>>>>>> 90dd9c1 (update)
 
       {/* Statistics Section */}
       {loading ? (
         <div className={styles.loadingSection}>
+<<<<<<< HEAD
           <div className={styles.loadingSpinner}>
             <FaSync className={styles.spinningIcon} />
           </div>
+=======
+          <div className={styles.loadingSpinner} />
+>>>>>>> 90dd9c1 (update)
           <p>กำลังโหลดข้อมูล...</p>
         </div>
       ) : (
@@ -532,141 +615,7 @@ export default function AdminDashboard() {
             </div>
           </div>
 
-          {/* Chart Section */}
-          <div className={styles.chartSection}>
-            <h2 className={styles.sectionTitle}>
-              <FaChartLine className={styles.sectionIcon} />
-              แผนภูมิรายรับ
-            </h2>
-            <div className={styles.chartCard} ref={chartWrapRef}>
-              {dailyStats.length === 0 ? (
-                <div className={styles.noDataMessage}>
-                  <p>ไม่มีข้อมูลในช่วงวันที่ที่เลือก</p>
-                </div>
-              ) : (
-                <ResponsiveContainer width="100%" height={360}>
-                  <LineChart data={dailyStats}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis
-                      dataKey="dateISO"
-                      tickFormatter={fmtTick}
-                      interval="preserveStartEnd"
-                      minTickGap={compact ? 12 : 6}
-                    />
-                    <YAxis yAxisId="left" allowDecimals={false} />
-                    <YAxis
-                      yAxisId="right"
-                      orientation="right"
-                      tickFormatter={(v) => `฿${v.toLocaleString()}`}
-                    />
-                    <Tooltip
-                      labelFormatter={fmtTooltipLabel}
-                      formatter={(value, name) => {
-                        if (name === "รายรับ (บาท)") {
-                          return [`฿${Number(value).toLocaleString()}`, name];
-                        }
-                        return [value, name];
-                      }}
-                    />
-                    <Legend />
-                    <Line
-                      yAxisId="left"
-                      type="monotone"
-                      dataKey="orders"
-                      stroke="#dc2626"
-                      strokeWidth={3}
-                      name="จำนวนออเดอร์"
-                    />
-                    <Line
-                      yAxisId="right"
-                      type="monotone"
-                      dataKey="revenue"
-                      stroke="#16a34a"
-                      strokeWidth={3}
-                      name="รายรับ (บาท)"
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              )}
-            </div>
-          </div>
-
-          {/* Performance Metrics */}
-          <div className={styles.performanceSection}>
-            <h2 className={styles.sectionTitle}>
-              <FaFire className={styles.sectionIcon} />
-              เมตริกส์ประสิทธิภาพ
-            </h2>
-            <div className={styles.metricsGrid}>
-              {performanceMetrics.map((metric, idx) => {
-                const Icon = metric.icon;
-                return (
-                  <div key={idx} className={styles.metricCard}>
-                    <div className={styles.metricIcon} style={{ backgroundColor: metric.color }}>
-                      <Icon />
-                    </div>
-                    <div className={styles.metricContent}>
-                      <div className={styles.metricTitle}>{metric.title}</div>
-                      <div className={styles.metricValue}>{metric.value}</div>
-                      <div className={styles.metricChange}>{metric.change}</div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Top Products Chart */}
-          <div className={styles.topProductsSection}>
-            <h2 className={styles.sectionTitle}>
-              <FaFire className={styles.sectionIcon} />
-              สินค้าขายดี
-            </h2>
-            <div className={styles.chartsContainer}>
-              <div className={styles.pieChartContainer}>
-                <ResponsiveContainer width="100%" height={300}>
-                  <PieChart>
-                    <Pie
-                      data={topProducts}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={60}
-                      outerRadius={120}
-                      paddingAngle={5}
-                      dataKey="sales"
-                    >
-                      {topProducts.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip 
-                      formatter={(value, name) => [`${value} ออเดอร์`, 'ยอดขาย']}
-                      labelFormatter={(label) => topProducts[label]?.name}
-                    />
-                    <Legend />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-              <div className={styles.productsList}>
-                {topProducts.map((product, idx) => (
-                  <div key={idx} className={styles.productItem}>
-                    <div 
-                      className={styles.productColor}
-                      style={{ backgroundColor: product.color }}
-                    ></div>
-                    <div className={styles.productInfo}>
-                      <div className={styles.productName}>{product.name}</div>
-                      <div className={styles.productStats}>
-                        {product.sales} ออเดอร์ • ฿{product.revenue.toLocaleString()}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Recent Orders Table */}
+          {/* Recent Orders */}
           <div className={styles.recentOrdersSection}>
             <h2 className={styles.sectionTitle}>
               <FaShoppingCart className={styles.sectionIcon} />
@@ -722,7 +671,7 @@ export default function AdminDashboard() {
             </div>
           </div>
 
-          {/* Activity Feed */}
+          {/* Activity */}
           <div className={styles.activitySection}>
             <h2 className={styles.sectionTitle}>
               <FaBell className={styles.sectionIcon} />
@@ -751,11 +700,6 @@ export default function AdminDashboard() {
                     </div>
                   );
                 })}
-              </div>
-              <div className={styles.activityFooter}>
-                <button className={styles.viewAllButton}>
-                  ดูทั้งหมด
-                </button>
               </div>
             </div>
           </div>

@@ -1,6 +1,7 @@
 // AdminNavigation.jsx - Modern Navigation Component for Admin Section
 import React from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, NavLink, useLocation, matchPath } from 'react-router-dom';
+
 import { 
   FaTachometerAlt, 
   FaBoxOpen, 
@@ -41,7 +42,11 @@ const ADMIN_MENU_ITEMS = [
     label: 'การชำระเงิน', 
     icon: FaClipboardList,
     description: 'รายการชำระเงิน',
+<<<<<<< HEAD
     permission: 'reports'
+=======
+    permission: 'payments'
+>>>>>>> 90dd9c1 (update)
   },
   { 
     to: '/admin/announcements', 
@@ -68,20 +73,31 @@ export default function AdminNavigation({
 }) {
   const location = useLocation();
   const { hasPermission } = usePermissions();
+<<<<<<< HEAD
   const [showTooltip, setShowTooltip] = React.useState({});
 
   // Filter menu items based on permissions
   const visibleMenuItems = ADMIN_MENU_ITEMS.filter(item => 
     !item.permission || hasPermission(item.permission)
   );
+=======
+  const [hoverId, setHoverId] = React.useState(null);
+  // Filter menu items based on permissions
+ const visibleMenuItems = React.useMemo(
+   () => ADMIN_MENU_ITEMS.filter(item => !item.permission || hasPermission(item.permission)),
+   [hasPermission]
+ );
+>>>>>>> 90dd9c1 (update)
 
-  const isActive = (path) => {
-    if (path === '/admin') {
-      return location.pathname === '/admin';
-    }
-    return location.pathname.startsWith(path);
-  };
+ const isActive = (to) => {
+   if (to === '/admin') {
+     return !!matchPath({ path: '/admin', end: true }, location.pathname);
+   }
+   // ให้ active กับเส้นทางย่อยทั้งหมดของเมนูนั้น
+   return !!matchPath({ path: `${to}/*`, end: false }, location.pathname);
+ };
 
+<<<<<<< HEAD
   const getBreadcrumb = () => {
     const currentItem = visibleMenuItems.find(item => 
       item.to === '/admin' 
@@ -90,6 +106,19 @@ export default function AdminNavigation({
     );
     return currentItem ? currentItem.label : 'Admin';
   };
+=======
+ const getBreadcrumb = () => {
+   const current = visibleMenuItems.find(item =>
+     item.to === '/admin'
+       ? matchPath({ path: '/admin', end: true }, location.pathname)
+       : matchPath({ path: `${item.to}/*`, end: false }, location.pathname)
+   );
+   return current ? current.label : 'Admin';
+ };
+
+  const handleTooltipShow = (itemId) => isCompact && setHoverId(itemId);
+ const handleTooltipHide = () => isCompact && setHoverId(null);
+>>>>>>> 90dd9c1 (update)
 
   const handleTooltipShow = (itemId) => {
     if (isCompact) {
@@ -126,16 +155,17 @@ export default function AdminNavigation({
             const active = isActive(item.to);
             
             return (
-              <Link
+              <NavLink
                 key={item.to}
                 to={item.to}
-                className={`${styles.horizontalLink} ${active ? styles.active : ''}`}
+                className={({ isActive }) => `${styles.horizontalLink} ${isActive ? styles.active : ''}`}
                 title={item.description}
+                aria-current={({ isActive }) => (isActive ? 'page' : undefined)}
               >
                 <Icon className={styles.linkIcon} />
                 <span className={styles.linkText}>{item.label}</span>
-                {active && <div className={styles.activeIndicator} />}
-              </Link>
+               aria-current={({ isActive }) => (isActive ? 'page' : undefined)}
+              </NavLink>
             );
           })}
         </div>
@@ -145,9 +175,17 @@ export default function AdminNavigation({
 
   // Default sidebar variant
   return (
+<<<<<<< HEAD
     <nav className={`${styles.sidebar} ${
       isCompact ? styles.compact : ''
     } ${isMobile ? styles.mobile : ''} ${className}`}>
+=======
+   <nav
+   className={`${styles.sidebar} ${isCompact ? styles.compact : ''} ${isMobile ? styles.mobile : ''} ${className}`}
+   role="navigation"
+   aria-label="Admin navigation"
+>
+>>>>>>> 90dd9c1 (update)
       <div className={styles.sidebarHeader}>
         <div className={styles.adminBrand}>
           <div className={styles.brandIcon}>⚙️</div>
@@ -196,7 +234,11 @@ export default function AdminNavigation({
                 </Link>
                 
                 {/* Tooltip for compact mode */}
+<<<<<<< HEAD
                 {isCompact && !isMobile && showTooltip[item.to] && (
+=======
+                {isCompact && !isMobile && hoverId === item.to && (
+>>>>>>> 90dd9c1 (update)
                   <div className={styles.tooltip}>
                     <div className={styles.tooltipContent}>
                       <strong>{item.label}</strong>
